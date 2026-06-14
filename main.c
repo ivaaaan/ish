@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -98,6 +99,49 @@ int main(int argc, char *argv[]) {
 
     buffer[n] = '\0';
 
+    FILE *stdout_r = NULL, *stdin_r = NULL;
+    int save_in = -1, save_out = -1;
+
+    char *stdout_redirect = strchr(buffer, '>');
+    if (stdout_redirect != NULL) {
+      int append = stdout_redirect[1] == '>';
+
+      *stdout_redirect = '\0';
+      char *fname = strtok(stdout_redirect + 1, " \t\n>");
+      if (fname == NULL) {
+        perror("stdout fname is NULL");
+        continue;
+      }
+
+      save_out = dup(STDOUT_FILENO);
+      close(STDOUT_FILENO);
+
+      stdout_r = fopen(fname, append ? "a+" : "w+");
+      if (stdout_r == NULL) {
+        perror("fopen");
+        continue;
+      }
+    }
+
+    char *stdin_redirect = strchr(buffer, '<');
+    if (stdin_redirect != NULL) {
+      *stdin_redirect = '\0';
+      char *fname = strtok(stdin_redirect + 1, " \t\n");
+      if (fname == NULL) {
+        perror("stdin fname is NULL");
+        continue;
+      }
+
+      save_in = dup(STDIN_FILENO);
+      close(STDIN_FILENO);
+
+      stdin_r = fopen(fname, "r");
+      if (stdin_r == NULL) {
+        perror("fopen");
+        continue;
+      }
+    }
+
     char *args[32];
     split_string(buffer, " \n", args);
 
@@ -105,19 +149,23 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+    uint status = 0;
     for (size_t i = 1; args[i] != NULL; i++) {
-
       char *d = strchr(args[i], '$');
-      if (d == NULL) {
-        continue;
-      }
 
-      *d = '\0';
+      if (d != NULL) {
+        *d = '\0';
 
-      char *v = getenv(d + 1);
-      if (v != NULL) {
-        args[i] = v;
+        char *v = getenv(d + 1);
+        if (v != NULL) {
+          args[i] = v;
+          continue;
+        }
       }
+    }
+
+    if (status < 0) {
+      continue;
     }
 
     cmd_handler c = find_builtin_cmd(args[0]);
@@ -137,6 +185,18 @@ int main(int argc, char *argv[]) {
       exit(EXIT_FAILURE);
     default:
       waitpid(pid, NULL, 0);
+      if (stdout_r != NULL) {
+        fclose(stdout_r);
+        dup2(save_out, STDOUT_FILENO);
+        close(save_out);
+      }
+
+      if (stdin_r != NULL) {
+        fclose(stdin_r);
+        dup2(save_in, STDIN_FILENO);
+        close(save_in);
+      }
+
       memset(buffer, 0, BUFFER_SIZE);
     }
   }

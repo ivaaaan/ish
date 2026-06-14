@@ -8,7 +8,7 @@ ish is a simple shell written in C. Learning project.
     - [x] Executing commands 
     - [x] $PATH resolution
     - [x] Environment variables
-- [ ] State changing commands (cd, export, unset)
-- [ ] Redirections (>, <, >>, <<)
+- [x] State changing commands (cd, export, unset)
+- [x] Redirections (>, <, >>, <<)
 - [ ] Pipes (|)
 - [ ] Signal handling (Ctrl+C, Ctrl+D, etc.)
