@@ -1,0 +1,32 @@
+version: '3'
+
+vars:
+  BIN: ishell
+  SRC: main.c
+
+tasks:
+  build:
+    desc: Compile the shell
+    cmds:
+      - gcc -Wall -Wextra -o {{.BIN}} {{.SRC}}
+    sources:
+      - '{{.SRC}}'
+    generates:
+      - '{{.BIN}}'
+
+  run:
+    desc: Build and run the shell
+    deps: [build]
+    cmds:
+      - ./{{.BIN}}
+
+  debug:
+    desc: Build with debug symbols and run under gdb
+    cmds:
+      - gcc -Wall -Wextra -g -o {{.BIN}} {{.SRC}}
+      - gdb ./{{.BIN}}
+
+  clean:
+    desc: Remove the compiled binary
+    cmds:
+      - rm -f {{.BIN}}
