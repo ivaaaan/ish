@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
   sprintf(pathenv, "PATH=%s", path);
   char *envp[] = {pathenv, NULL};
 
+  int save_in = -1, save_out = -1;
   while (1) {
     fprintf(stdout, "> ");
     fflush(stdout);
@@ -100,7 +101,11 @@ int main(int argc, char *argv[]) {
     buffer[n] = '\0';
 
     FILE *stdout_r = NULL, *stdin_r = NULL;
-    int save_in = -1, save_out = -1;
+
+    if (save_in != -1 || save_out != -1) {
+      dup2(save_in, STDIN_FILENO);
+      dup2(save_out, STDOUT_FILENO);
+    }
 
     char *stdout_redirect = strchr(buffer, '>');
     if (stdout_redirect != NULL) {
@@ -140,6 +145,53 @@ int main(int argc, char *argv[]) {
         perror("fopen");
         continue;
       }
+    }
+
+    int pipefd[2];
+    char *pipes = strchr(buffer, '|');
+    if (pipes != NULL) {
+
+      char *commands[32];
+      split_string(buffer, "|", commands);
+
+      if (pipe(pipefd) == -1) {
+        perror("pipe");
+        continue;
+      }
+
+      int left = fork();
+      if (left == 0) {
+        char *args[32];
+        split_string(commands[0], " \n", args);
+
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[0]);
+        close(pipefd[1]);
+
+        execvp(args[0], args);
+        _exit(127);
+      }
+
+      int right = fork();
+      if (right == 0) {
+        char *args[32];
+        split_string(commands[1], " \n", args);
+
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[0]);
+        close(pipefd[1]);
+
+        execvp(args[0], args);
+        _exit(127);
+      }
+
+      close(pipefd[0]);
+      close(pipefd[1]);
+
+      waitpid(left, NULL, 0);
+      waitpid(right, NULL, 0);
+
+      continue;
     }
 
     char *args[32];
